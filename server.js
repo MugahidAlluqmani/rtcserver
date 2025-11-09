@@ -1,54 +1,42 @@
-import express from "express";
-import { WebSocketServer } from "ws";
-import http from "http";
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const io = new Server(server, { cors: { origin: '*' } });
 
-let clients = new Map();
+// عندما يتصل أحد المستخدمين
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
 
-wss.on("connection", (ws) => {
-  console.log("🔗 New client connected");
-
-  ws.on("message", (message) => {
-    try {
-      const data = JSON.parse(message);
-      console.log("📩 Received:", data);
-
-      // تسجيل المستخدم
-      if (data.type === "register") {
-        clients.set(data.name, ws);
-        ws.name = data.name;
-        console.log(`✅ Registered user: ${data.name}`);
-        return;
-      }
-
-      // إرسال الرسائل للطرف الآخر
-      if (data.target && clients.has(data.target)) {
-        const target = clients.get(data.target);
-        target.send(JSON.stringify({ ...data, from: ws.name }));
-        console.log(`📤 Sent message to ${data.target}`);
-      }
-    } catch (err) {
-      console.error("❌ Error parsing message:", err);
-    }
+  // استقبال الـ Offer وإرساله للطرف الآخر
+  socket.on('offer', (data) => {
+    socket.broadcast.emit('offer', data);
   });
 
-  ws.on("close", () => {
-    if (ws.name) {
-      clients.delete(ws.name);
-      console.log(`❌ ${ws.name} disconnected`);
-    }
+  // استقبال الـ Answer وإرساله للطرف الآخر
+  socket.on('answer', (data) => {
+    socket.broadcast.emit('answer', data);
+  });
+
+  // استقبال الـ ICE Candidate وإرساله للطرف الآخر
+  socket.on('ice-candidate', (data) => {
+    socket.broadcast.emit('ice-candidate', data);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
   });
 });
 
-app.get("/", (req, res) => {
-  res.send("✅ Simple WebRTC Signaling Server is running!");
-});
-
-// Use Railway or Render default port, fallback to 3000 for local
-const PORT = process.env.PORT || 8080;
+// 🟢 استخدم المنفذ الذي توفره Railway
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 Signaling server running on port ${PORT}`);
+});
+
+// (اختياري) صفحة اختبار
+app.get('/', (req, res) => {
+  res.send('✅ WebRTC Signaling Server is running');
 });
