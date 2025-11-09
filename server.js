@@ -48,7 +48,7 @@ app.get("/", (req, res) => {
 });
 
 // Use Railway or Render default port, fallback to 3000 for local
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
