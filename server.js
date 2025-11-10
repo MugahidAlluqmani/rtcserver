@@ -6,41 +6,40 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
-const users = {}; // { username: socket.id }
+let users = {}; // name -> socket.id
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  socket.on('register', ({ username }) => {
+  // تسجيل اسم المستخدم
+  socket.on('register', (username) => {
     users[username] = socket.id;
-    console.log(`User registered: ${username} (${socket.id})`);
+    console.log(`✅ ${username} registered as ${socket.id}`);
   });
 
-  socket.on('offer', ({ to, offer }) => {
-    const targetId = users[to];
-    if (targetId) io.to(targetId).emit('offer', { from: socket.id, offer });
+  // إرسال عرض لشخص محدد
+  socket.on('offer', ({ target, offer }) => {
+    const targetId = users[target];
+    if (targetId) io.to(targetId).emit('offer', { offer, from: socket.id });
   });
 
-  socket.on('answer', ({ to, answer }) => {
-    const targetId = users[to];
-    if (targetId) io.to(targetId).emit('answer', { from: socket.id, answer });
+  // إرسال جواب للشخص الذي أرسل العرض
+  socket.on('answer', ({ target, answer }) => {
+    io.to(target).emit('answer', { answer });
   });
 
-  socket.on('ice-candidate', ({ to, candidate }) => {
-    const targetId = users[to];
-    if (targetId) io.to(targetId).emit('ice-candidate', { from: socket.id, candidate });
+  // تبادل مرشحات ICE
+  socket.on('ice-candidate', ({ target, candidate }) => {
+    io.to(target).emit('ice-candidate', { candidate });
   });
 
+  // عند قطع الاتصال
   socket.on('disconnect', () => {
-    for (const [name, id] of Object.entries(users)) {
-      if (id === socket.id) {
-        delete users[name];
-        console.log(`User disconnected: ${name}`);
-        break;
-      }
+    for (let name in users) {
+      if (users[name] === socket.id) delete users[name];
     }
+    console.log('User disconnected:', socket.id);
   });
 });
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log('🚀 Signaling server running on port '+PORT));
 
+server.listen(8080, () => console.log('🚀 Signaling server running on port 8080'));
