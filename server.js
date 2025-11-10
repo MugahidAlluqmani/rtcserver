@@ -6,37 +6,41 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
-// عندما يتصل أحد المستخدمين
+const users = {}; // { username: socket.id }
+
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  // استقبال الـ Offer وإرساله للطرف الآخر
-  socket.on('offer', (data) => {
-    socket.broadcast.emit('offer', data);
+  socket.on('register', ({ username }) => {
+    users[username] = socket.id;
+    console.log(`User registered: ${username} (${socket.id})`);
   });
 
-  // استقبال الـ Answer وإرساله للطرف الآخر
-  socket.on('answer', (data) => {
-    socket.broadcast.emit('answer', data);
+  socket.on('offer', ({ to, offer }) => {
+    const targetId = users[to];
+    if (targetId) io.to(targetId).emit('offer', { from: socket.id, offer });
   });
 
-  // استقبال الـ ICE Candidate وإرساله للطرف الآخر
-  socket.on('ice-candidate', (data) => {
-    socket.broadcast.emit('ice-candidate', data);
+  socket.on('answer', ({ to, answer }) => {
+    const targetId = users[to];
+    if (targetId) io.to(targetId).emit('answer', { from: socket.id, answer });
+  });
+
+  socket.on('ice-candidate', ({ to, candidate }) => {
+    const targetId = users[to];
+    if (targetId) io.to(targetId).emit('ice-candidate', { from: socket.id, candidate });
   });
 
   socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
+    for (const [name, id] of Object.entries(users)) {
+      if (id === socket.id) {
+        delete users[name];
+        console.log(`User disconnected: ${name}`);
+        break;
+      }
+    }
   });
 });
-
-// 🟢 استخدم المنفذ الذي توفره Railway
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 Signaling server running on port ${PORT}`);
-});
+server.listen(PORT, () => console.log('🚀 Signaling server running on port '+PORT));
 
-// (اختياري) صفحة اختبار
-app.get('/', (req, res) => {
-  res.send('✅ WebRTC Signaling Server is running');
-});
